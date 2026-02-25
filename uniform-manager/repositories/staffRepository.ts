@@ -1,0 +1,13 @@
+import { createClient } from "../lib/supabase/client"
+
+export async function getStaffById(id: string) {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("staff")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (error) throw error
+  return data
+}
