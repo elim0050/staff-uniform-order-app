@@ -8,9 +8,11 @@ import {
   getAllRequests,
   getFormattedRequests, 
   updateRequestStatus,
-  getRequestedQuantityByStaffId
+  getRequestedQuantityByStaffId,
+  getRequestByTrackingNumber
 } from "@/repositories/requestRepository"
 import { updateStaffItems } from "./staffService"
+import {  RequestStatus } from "../types /types"
 
 
 export async function createUniformRequest(payload: any) {
@@ -129,4 +131,9 @@ function getQuantity(items: any) {
   )
   return currQty
 
+}
+
+export async function  getRequestByTrackingNum(tracking_num: string){
+  const getReq = await getRequestByTrackingNumber(tracking_num)
+  return getReq
 }

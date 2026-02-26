@@ -34,17 +34,33 @@ export async function insertRequestItems(items: any[]) {
   if (error) throw error
 }
 
+export async function updateRequestStatus(trackingId: string, newStatus: string) {
+  console.log("Attempting update:", trackingId, newStatus);
 
-export async function updateRequestStatus(id: string, status: string) {
-  const { error } = await supabase
+  // Check if row exists first
+  const { data: existing, error: checkError } = await supabase
+    .from("requests")
+    .select("*")
+    .eq("tracking_number", trackingId)
+
+  if (checkError) throw checkError;
+  if (!existing || existing.length === 0) {
+    console.log("No rows found with tracking_number:", trackingId);
+    return;
+  }
+
+  // Attempt update
+  const { data, error } = await supabase
     .from("requests")
     .update({
-      status,
-      updated_at: new Date().toISOString()
+      status: newStatus,
+      updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
+    .eq("tracking_number", trackingId.trim())
+    .select();
 
-  if (error) throw error
+  console.log("Update result:", data, error);
+  if (error) throw error;
 }
 
 export async function getAllRequests() {
@@ -134,11 +150,71 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
         )
       )
     `)
-    .returns<RawRequest[]>(); // ⭐ THIS FIXES EVERYTHING
-
+    .returns<RawRequest[]>(); // 
+  console.log("Supabase data:", data);
+  console.log("Supabase error:", error);
   if (error) throw error;
 
   const formatted: RequestRow[] = (data || []).map(req => {
+    const staff = req.staff;
+    const role = staff?.role;
+    const item = req.request_items?.[0];
+    const uniform = item?.uniform_items;
+
+    return {
+      id: req.id,
+      staffName: staff?.name ?? "",
+      staffRole: role?.name ?? null,
+      uniformItem: uniform?.name ?? "",
+      quantity: item?.quantity ?? 0,
+      status: req.status,
+      requestedAt: req.created_at,
+      lowStock: uniform ? uniform.stock_on_hand < 5 : false,
+      onCooldown: staff?.is_cooldown ?? false,
+    };
+  });
+
+  return formatted;
+}
+
+
+export async function getRequestByTrackingNumber(tracking_num: string): Promise<RequestRow[] | null> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select(`
+      id,
+      status,
+      created_at,
+      staff:staff_id (
+        name,
+        is_cooldown,
+        role:role_id (
+          name
+        )
+      ),
+      request_items (
+        quantity,
+        uniform_items (
+          name,
+          stock_on_hand
+        )
+      )
+    `)
+    .eq("tracking_number", tracking_num)
+    .returns<RawRequest[]>(); // <-- same as getFormattedRequests
+
+  console.log("Supabase data:", data);
+  console.log("Supabase error:", error);
+
+  if (error) {
+    console.error("Error fetching request:", error.message);
+    return null;
+  }
+
+  if (!data || data.length === 0) return null;
+
+  // Format exactly like getFormattedRequests
+  const formatted: RequestRow[] = data.map((req) => {
     const staff = req.staff;
     const role = staff?.role;
     const item = req.request_items?.[0];
