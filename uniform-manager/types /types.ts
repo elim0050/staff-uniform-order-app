@@ -10,6 +10,9 @@ export type RequestRow = {
   requestedAt: string;
   lowStock?: boolean;
   onCooldown?: boolean;
+  uniformSize?: string;
+  uniformEan?: string; 
+  trackingNum?: string; 
 };
 
 export type StaffOption = {

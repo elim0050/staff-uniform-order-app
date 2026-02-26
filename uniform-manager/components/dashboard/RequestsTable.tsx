@@ -75,9 +75,12 @@ export function RequestsTable({
           <tr>
             <Th>Staff name</Th>
             <Th>Uniform item</Th>
+            <Th>Size</Th>
+            <Th>EAN</Th>
             <Th className="text-right">Quantity</Th>
             <Th>Status</Th>
             <Th>Requested on</Th>
+            <Th>order id</Th>
             <Th>Notes / flags</Th>
           </tr>
         </thead>
@@ -111,6 +114,12 @@ export function RequestsTable({
                 <Td>
                   <span className="text-sm text-zinc-800">{req.uniformItem}</span>
                 </Td>
+                <Td>
+                  <span className="text-sm text-zinc-800">{req.uniformSize}</span>
+                </Td>
+                <Td>
+                  <span className="text-sm text-zinc-800">{req.uniformEan}</span>
+                </Td>
                 <Td className="text-right">
                   <span className="tabular-nums">{req.quantity}</span>
                 </Td>
@@ -125,6 +134,9 @@ export function RequestsTable({
                   <span className="text-xs text-zinc-600">
                     {new Date(req.requestedAt).toLocaleDateString()}
                   </span>
+                </Td>
+                <Td>
+                  <span className="text-sm text-zinc-800">{req.trackingNum}</span>
                 </Td>
                 <Td>
                   {flags.length ? (

@@ -112,6 +112,7 @@ type RawRequest = {
   id: string;
   status: RequestStatus;
   created_at: string;
+  tracking_number : string;
   staff: {
     name: string;
     is_cooldown: boolean;
@@ -124,6 +125,8 @@ type RawRequest = {
     uniform_items: {
       name: string;
       stock_on_hand: number;
+      size: string;
+      ean: string;
     };
   }[];
 };
@@ -135,6 +138,7 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
       id,
       status,
       created_at,
+      tracking_number,
       staff:staff_id (
         name,
         is_cooldown,
@@ -146,7 +150,9 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
         quantity,
         uniform_items (
           name,
-          stock_on_hand
+          stock_on_hand,
+          size,
+          ean
         )
       )
     `)
@@ -160,6 +166,7 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
     const role = staff?.role;
     const item = req.request_items?.[0];
     const uniform = item?.uniform_items;
+    console.log(staff, role)
 
     return {
       id: req.id,
@@ -171,6 +178,9 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
       requestedAt: req.created_at,
       lowStock: uniform ? uniform.stock_on_hand < 5 : false,
       onCooldown: staff?.is_cooldown ?? false,
+      uniformSize: uniform?.size ?? "",
+      uniformEan: uniform?.ean ?? "",
+      trackingNum: req.tracking_number
     };
   });
 
@@ -196,7 +206,9 @@ export async function getRequestByTrackingNumber(tracking_num: string): Promise<
         quantity,
         uniform_items (
           name,
-          stock_on_hand
+          stock_on_hand,
+          ean,
+          size
         )
       )
     `)
@@ -230,6 +242,9 @@ export async function getRequestByTrackingNumber(tracking_num: string): Promise<
       requestedAt: req.created_at,
       lowStock: uniform ? uniform.stock_on_hand < 5 : false,
       onCooldown: staff?.is_cooldown ?? false,
+      uniformSize: uniform?.size ?? "",
+      uniformEan: uniform?.ean ?? "",
+      trackingNum: tracking_num
     };
   });
 
