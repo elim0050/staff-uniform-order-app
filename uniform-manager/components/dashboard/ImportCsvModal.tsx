@@ -17,52 +17,54 @@ export function ImportCsvModal({
   const [file, setFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [summary, setSummary] = useState<{
-    totalRows: number;
-    validRows: number;
-    invalidRows: { rowNumber: number; error: string }[];
-  } | null>(null);
+    success: number
+    failed: number
+    failedMessages: string[]
+  } | null>(null)
   const [error, setError] = useState<string | null>(null);
 
   async function handleImport() {
-    if (!file) return;
-    setIsImporting(true);
-    setError(null);
+    if (!file) return
+    setIsImporting(true)
+    setError(null)
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
       const res = await fetch(`/api/import/${type}`, {
         method: "POST",
+        // If your API expects raw text/body, keep body: file.
+        // If your API expects multipart/form-data, use FormData (see note below).
         body: file,
-      });
+      })
+
+      const data = await res.json().catch(() => null)
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
         const message =
-          data?.error ?? data?.message ?? "We could not import this file.";
-        setError(message);
-        onError(message);
-        return;
+          data?.error ?? data?.message ?? "We could not import this file."
+        setError(message)
+        onError(message)
+        return
       }
-      const data = await res.json();
-      const invalidRows =
-        data.invalidRows?.map((row: any) => ({
-          rowNumber: row.rowNumber ?? row.row_number ?? 0,
-          error: row.error ?? "Invalid row",
-        })) ?? [];
+
       const nextSummary = {
-        totalRows: data.totalRows ?? data.total_rows ?? 0,
-        validRows: data.validRows ?? data.valid_rows ?? 0,
-        invalidRows,
-      };
-      setSummary(nextSummary);
-      const summaryMessage = `Imported ${nextSummary.validRows} of ${nextSummary.totalRows} row(s).`;
-      onImported({ summaryMessage });
+        success: Number(data?.success ?? 0),
+        failed: Number(data?.failed ?? 0),
+        failedMessages: Array.isArray(data?.failedMessages)
+          ? data.failedMessages
+          : [],
+      }
+
+      setSummary(nextSummary)
+
+      const total = nextSummary.success + nextSummary.failed
+      const summaryMessage = `Imported ${nextSummary.success} of ${total} row(s).`
+      onImported({ summaryMessage })
     } catch (err: any) {
-      const message =
-        err?.message ?? "We could not import this file right now.";
-      setError(message);
-      onError(message);
+      const message = err?.message ?? "We could not import this file right now."
+      setError(message)
+      onError(message)
     } finally {
-      setIsImporting(false);
+      setIsImporting(false)
     }
   }
 
@@ -107,10 +109,10 @@ export function ImportCsvModal({
           {summary && (
             <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               <p className="font-medium">
-                Import summary: {summary.validRows} of {summary.totalRows} row(s)
-                imported.
+                Import summary: {summary.success} imported, {summary.failed} skipped.
               </p>
-              {summary.invalidRows.length > 0 && (
+
+              {summary.failedMessages.length > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
                   <p className="font-medium">Skipped rows</p>
                   <div className="max-h-32 overflow-auto rounded border border-emerald-100 bg-white">
@@ -118,7 +120,7 @@ export function ImportCsvModal({
                       <thead className="bg-emerald-50">
                         <tr>
                           <th className="border-b border-emerald-100 px-2 py-1 font-semibold text-emerald-900">
-                            Row
+                            #
                           </th>
                           <th className="border-b border-emerald-100 px-2 py-1 font-semibold text-emerald-900">
                             Issue
@@ -126,14 +128,10 @@ export function ImportCsvModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {summary.invalidRows.map((row) => (
-                          <tr key={row.rowNumber}>
-                            <td className="px-2 py-1 text-emerald-900">
-                              {row.rowNumber}
-                            </td>
-                            <td className="px-2 py-1 text-emerald-900">
-                              {row.error}
-                            </td>
+                        {summary.failedMessages.map((msg, i) => (
+                          <tr key={`${i}-${msg}`}>
+                            <td className="px-2 py-1 text-emerald-900">{i + 1}</td>
+                            <td className="px-2 py-1 text-emerald-900">{msg}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -143,7 +141,6 @@ export function ImportCsvModal({
               )}
             </div>
           )}
-
         </div>
 
         <div className="mt-2 flex justify-end gap-2">

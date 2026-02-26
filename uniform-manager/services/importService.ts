@@ -18,51 +18,64 @@ function extractNameAndSize(fullName: string) {
   }
   
 
-export async function importCSV(csvText: string) {
-  const parsed = Papa.parse<CSVRow>(csvText, {
-    header: true,
-    skipEmptyLines: true,
-  })
-  console.log("parsed", parsed.data)
-  if (parsed.errors.length > 0) {
-    console.error("CSV Parse Errors:", parsed.errors)
-    return { success: 0, failed: parsed.data.length }
-  }
-
-  let success = 0
-  let failed = 0
-
-  for (const row of parsed.data) {
-    // Validate required fields
-    if (!row.Name || !row.EAN) {
-      failed++
-      continue
+  export async function importCSV(csvText: string) {
+    const parsed = Papa.parse<CSVRow>(csvText, {
+      header: true,
+      skipEmptyLines: true,
+    })
+  
+    if (parsed.errors.length > 0) {
+      return {
+        success: 0,
+        failed: parsed.data.length,
+        failedMessages: parsed.errors.map(e => e.message),
+      }
     }
-
-    const { name, size } = extractNameAndSize(row.Name)
-
-    const qty = Number(row.Qty)
-    
-    const { error } = await supabase
-      .from("uniform_items")
-      .insert({
-        ean: row.EAN.trim(),
-        name: name,
-        size: size,
-        stock_on_hand: isNaN(qty) ? 0 : qty,
-      })
-
-    if (error) {
-      console.error("Insert error:", error.message)
-      failed++
-    } else {
-      success++
+  
+    let success = 0
+    let failed = 0
+    const failedMessages: string[] = []
+  
+    for (let index = 0; index < parsed.data.length; index++) {
+      const row = parsed.data[index]
+  
+      // Validate required fields
+      if (!row.Name || !row.EAN) {
+        failed++
+        failedMessages.push(
+          `Row ${index + 2}: Missing Name or EAN`
+        )
+        continue
+      }
+  
+      const { name, size } = extractNameAndSize(row.Name)
+      const qty = Number(row.Qty)
+  
+      const { error } = await supabase
+        .from("uniform_items")
+        .insert({
+          ean: row.EAN.trim(),
+          name: name,
+          size: size,
+          stock_on_hand: isNaN(qty) ? 0 : qty,
+        })
+  
+      if (error) {
+        failed++
+        failedMessages.push(
+          `Row ${index + 2} (EAN: ${row.EAN}): ${error.message}`
+        )
+      } else {
+        success++
+      }
+    }
+  
+    return {
+      success,
+      failed,
+      failedMessages,
     }
   }
-
-  return { success, failed }
-}
-
 
 
 async function getOrCreateRole(roleName: string): Promise<string> {
@@ -100,43 +113,70 @@ async function getOrCreateRole(roleName: string): Promise<string> {
     return newRole.id
   }
 
-export async function importStaffCSV(csvText: string) {
+  export async function importStaffCSV(csvText: string) {
     const parsed = Papa.parse(csvText, {
       header: true,
       skipEmptyLines: true,
-    });
+    })
   
-    let success = 0;
-    let failed = 0;
-  
-    for (const row of parsed.data as any[]) {
-      try {
-        const name = row["Display Name"]?.trim();
-        const role = row["Role"]?.trim();
-        const store = row["Store"]?.trim();
-        console.log(name, role, store )
-        if (!name || !role || !store) {
-          failed++;
-          continue;
-        }
-        const role_id = await getOrCreateRole(role)
-        const { error } = await supabase
-          .from("staff")
-          .insert({ 
-            name: name,
-            role_id : role_id,  
-            store: store });
-  
-        if (error) {
-            console.error("Insert error:", error.message)
-          failed++;
-        } else {
-          success++;
-        }
-      } catch {
-        failed++;
+    // If Papa parse itself has errors, return them as failedMessages
+    if (parsed.errors?.length > 0) {
+      return {
+        success: 0,
+        failed: (parsed.data as any[])?.length ?? 0,
+        failedMessages: parsed.errors.map((e) => e.message),
       }
     }
   
-    return { success, failed };
+    let success = 0
+    let failed = 0
+    const failedMessages: string[] = []
+  
+    const rows = parsed.data as any[]
+  
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+  
+      // Row number in the original CSV:
+      // +1 for 0-index, +1 for header row => +2
+      const rowNumber = i + 2
+  
+      try {
+        const name = row["Display Name"]?.trim()
+        const role = row["Role"]?.trim()
+        const store = row["Store"]?.trim()
+  
+        if (!name || !role || !store) {
+          failed++
+          failedMessages.push(
+            `Row ${rowNumber}: Missing required field(s) - Display Name, Role, or Store`
+          )
+          continue
+        }
+  
+        const role_id = await getOrCreateRole(role)
+  
+        const { error } = await supabase
+          .from("staff")
+          .insert({
+            name,
+            role_id,
+            store,
+          })
+  
+        if (error) {
+          failed++
+          failedMessages.push(`Row ${rowNumber} (${name}): ${error.message}`)
+        } else {
+          success++
+        }
+      } catch (err: any) {
+        failed++
+        failedMessages.push(
+          `Row ${rowNumber}: Unexpected error - ${err?.message ?? "Unknown error"}`
+        )
+      }
+    }
+  
+    return { success, failed, failedMessages }
   }
