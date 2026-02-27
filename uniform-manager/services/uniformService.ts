@@ -1,4 +1,4 @@
-import { getAllUniforms, getFormattedUniforms } from "@/repositories/uniformRepository"
+import {  getFormattedUniforms } from "@/repositories/uniformRepository"
 
 export async function listUniforms() {
   return await getFormattedUniforms()

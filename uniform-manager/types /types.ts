@@ -34,7 +34,6 @@ export type UniformItemOption = {
 export type RoleLimit = {
   role: string;
   maxItemsPerPeriod: number;
-  periodMonths: number;
   cooldownDays: number;
 };
 
