@@ -12,9 +12,9 @@ import {
   updateRequestStatus,
   getRequestedQuantityByStaffId,
   getRequestByTrackingNumber,
+  getFormattedRequestById,
 } from "@/repositories/requestRepository"
-import { updateStaffItems } from "./staffService"
-import { RequestStatus } from "../types /types"
+
 
 /**
  * Creates a uniform request for a staff member.
@@ -74,8 +74,9 @@ export async function createUniformRequest(payload: any) {
   if (Object.keys(updateItem).length > 0) {
     await updateStaff(staff.id, updateItem)
   }
+  const formattedReq = await getFormattedRequestById(request.id)
 
-  return request
+  return formattedReq
 }
 
 /**

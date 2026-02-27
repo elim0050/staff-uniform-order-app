@@ -13,6 +13,7 @@ export type RequestRow = {
   uniformSize?: string;
   uniformEan?: string; 
   trackingNum?: string; 
+  reason? : string ;
 };
 
 export type StaffOption = {
@@ -29,6 +30,7 @@ export type UniformItemOption = {
   size?: string | null;
   stockOnHand?: number;
   lowStock?: boolean;
+  ean?: string; 
 };
 
 export type RoleLimit = {

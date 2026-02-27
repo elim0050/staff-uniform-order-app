@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type {
   RequestRow,
-  RequestStatus,
   RoleLimit,
   StaffOption,
   UniformItemOption,
@@ -120,29 +119,7 @@ export function NewRequestModal({
       }
 
       const created = await res.json();
-      const mapped: RequestRow = {
-        id: String(created.id),
-        staffName:
-          created.staff_name ??
-          created.staffName ??
-          selectedStaff?.name ??
-          "Unknown",
-        staffRole:
-          created.staff_role ?? created.staffRole ?? selectedStaff?.roleName,
-        uniformItem:
-          created.uniform_item ??
-          created.uniformItem ??
-          selectedItem?.name ??
-          "Uniform item",
-        quantity: Number(created.quantity ?? quantity ?? 0),
-        status: (created.status as RequestStatus) ?? "REQUESTED",
-        requestedAt:
-          created.requested_at ?? created.requestedAt ?? new Date().toISOString(),
-        lowStock: Boolean(created.low_stock ?? created.lowStock),
-        onCooldown: Boolean(created.on_cooldown ?? created.onCooldown),
-      };
-
-      onCreated(mapped);
+      onCreated(created);
       onClose();
     } catch (err: any) {
       const message =
@@ -229,6 +206,7 @@ export function NewRequestModal({
               <option value="">Select item</option>
               {uniformOptions.map((item) => (
                 <option key={item.id} value={item.id}>
+                  {item.ean ? `${item.ean} ` : ""}
                   {item.name}
                   {item.size ? ` (${item.size})` : ""}
                   {typeof item.stockOnHand === "number"

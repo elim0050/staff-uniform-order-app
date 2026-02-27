@@ -27,7 +27,6 @@ export function RequestsTable({
   requests,
   onRetry,
 }: RequestsTableProps) {
-  console.log(requests)
   if (isLoading) {
     return (
       <div className="flex min-h-[180px] items-center justify-center">
@@ -91,6 +90,8 @@ export function RequestsTable({
             const flags: string[] = [];
             if (req.lowStock) flags.push("Low stock");
             if (req.onCooldown) flags.push("On cooldown");
+            if (req.reason) flags.push(req.reason);
+
 
             return (
               <tr

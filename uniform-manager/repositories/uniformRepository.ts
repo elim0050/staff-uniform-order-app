@@ -12,7 +12,7 @@ const supabase = createClient()
 export async function getFormattedUniforms(): Promise<UniformItemOption[]> {
   const { data, error } = await supabase
     .from("uniform_items")
-    .select("id, name, size, stock_on_hand")
+    .select("id, name, size, ean, stock_on_hand")
 
   if (error) throw error
 
@@ -22,5 +22,7 @@ export async function getFormattedUniforms(): Promise<UniformItemOption[]> {
     size: u.size ?? null,
     stockOnHand: u.stock_on_hand,
     lowStock: (u.stock_on_hand ?? 0) < 5,
+    ean : u.ean ?? "",
+
   }))
 }

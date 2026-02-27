@@ -139,6 +139,7 @@ type RawRequest = {
   status: RequestStatus
   created_at: string
   tracking_number: string
+  reason: string ,
   staff: {
     name: string
     is_cooldown: boolean
@@ -172,6 +173,7 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
       status,
       created_at,
       tracking_number,
+      reason,
       staff:staff_id (
         name,
         is_cooldown,
@@ -210,6 +212,7 @@ export async function getFormattedRequests(): Promise<RequestRow[]> {
       uniformSize: uniform?.size ?? "",
       uniformEan: uniform?.ean ?? "",
       trackingNum: req.tracking_number,
+      reason: req.reason,
     }
   })
 }
@@ -230,6 +233,7 @@ export async function getRequestByTrackingNumber(
       id,
       status,
       created_at,
+      reason,
       staff:staff_id (
         name,
         is_cooldown,
@@ -269,6 +273,69 @@ export async function getRequestByTrackingNumber(
       uniformSize: uniform?.size ?? "",
       uniformEan: uniform?.ean ?? "",
       trackingNum: tracking_num,
+      reason: req.reason
     }
   })
+}
+
+/**
+ * Fetches a single request by ID and formats it into a RequestRow.
+ *
+ * @param requestId - The request ID to fetch.
+ * @returns A formatted RequestRow or null if not found.
+ * @throws Error if fetch fails.
+ */
+export async function getFormattedRequestById(
+  requestId: string
+): Promise<RequestRow | null> {
+  const { data, error } = await supabase
+    .from("requests")
+    .select(`
+      id,
+      status,
+      created_at,
+      tracking_number,
+      reason,
+      staff:staff_id (
+        name,
+        is_cooldown,
+        role:role_id ( name )
+      ),
+      request_items (
+        quantity,
+        uniform_items (
+          name,
+          stock_on_hand,
+          size,
+          ean
+        )
+      )
+    `)
+    .eq("id", requestId)
+    .returns<RawRequest[]>()
+
+  if (error) throw error
+  if (!data || data.length === 0) return null
+
+  const req = data[0]
+  const staff = req.staff
+  const role = staff?.role
+  const item = req.request_items?.[0]
+  const uniform = item?.uniform_items
+
+  return {
+    id: req.id,
+    staffName: staff?.name ?? "",
+    staffRole: role?.name ?? null,
+    uniformItem: uniform?.name ?? "",
+    quantity: item?.quantity ?? 0,
+    status: req.status,
+    requestedAt: req.created_at,
+    lowStock: uniform ? uniform.stock_on_hand < 5 : false,
+    onCooldown: staff?.is_cooldown ?? false,
+    uniformSize: uniform?.size ?? "",
+    uniformEan: uniform?.ean ?? "",
+    trackingNum: req.tracking_number,
+    reason: req.reason
+  }
 }
