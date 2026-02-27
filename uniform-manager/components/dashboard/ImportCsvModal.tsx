@@ -1,12 +1,18 @@
-import { useState } from "react";
-import { Modal } from "./Modal";
+import { useState } from "react"
+import { Modal } from "./Modal"
 
 type ImportCsvModalProps = {
-  type: "uniform" | "staff";
-  onClose: () => void;
-  onImported: (payload: { summaryMessage: string }) => void;
-  onError: (message: string) => void;
-};
+  type: "uniform" | "staff"
+  onClose: () => void
+  onImported: (payload: { summaryMessage: string }) => void
+  onError: (message: string) => void
+}
+
+type ImportSummary = {
+  success: number
+  failed: number
+  failedMessages: string[]
+}
 
 export function ImportCsvModal({
   type,
@@ -14,26 +20,29 @@ export function ImportCsvModal({
   onImported,
   onError,
 }: ImportCsvModalProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [summary, setSummary] = useState<{
-    success: number
-    failed: number
-    failedMessages: string[]
-  } | null>(null)
-  const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [summary, setSummary] = useState<ImportSummary | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
+  /**
+   * Uploads the selected CSV file to the server import endpoint and
+   * displays a summary of imported/skipped rows.
+   */
   async function handleImport() {
-    if (!file) return
+    if (!file || isImporting) return
+
     setIsImporting(true)
     setError(null)
 
     try {
+      // API expects raw CSV text (req.text() on the server).
+      const csvText = await file.text()
+
       const res = await fetch(`/api/import/${type}`, {
         method: "POST",
-        // If your API expects raw text/body, keep body: file.
-        // If your API expects multipart/form-data, use FormData (see note below).
-        body: file,
+        headers: { "Content-Type": "text/plain" },
+        body: csvText,
       })
 
       const data = await res.json().catch(() => null)
@@ -46,7 +55,7 @@ export function ImportCsvModal({
         return
       }
 
-      const nextSummary = {
+      const nextSummary: ImportSummary = {
         success: Number(data?.success ?? 0),
         failed: Number(data?.failed ?? 0),
         failedMessages: Array.isArray(data?.failedMessages)
@@ -57,8 +66,9 @@ export function ImportCsvModal({
       setSummary(nextSummary)
 
       const total = nextSummary.success + nextSummary.failed
-      const summaryMessage = `Imported ${nextSummary.success} of ${total} row(s).`
-      onImported({ summaryMessage })
+      onImported({
+        summaryMessage: `Imported ${nextSummary.success} of ${total} row(s).`,
+      })
     } catch (err: any) {
       const message = err?.message ?? "We could not import this file right now."
       setError(message)
@@ -68,15 +78,25 @@ export function ImportCsvModal({
     }
   }
 
+  /**
+   * Handles file selection and resets any previous import results.
+   */
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null
+    setFile(f)
+    setSummary(null)
+    setError(null)
+  }
+
   return (
     <Modal onClose={onClose} ariaLabel="Import staff and uniform data from CSV">
       <div className="flex flex-col gap-4">
         <header className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-zinc-900">
-            Import Staff &amp; Uniform Data
+            {`Import ${type} data from CSV`}
           </h2>
           <p className="text-xs text-zinc-500">
-            Upload a CSV file to add or update staff and uniform information.
+            Upload a CSV file to add or update {type} information.
             Invalid rows will be skipped and listed below.
           </p>
         </header>
@@ -87,12 +107,7 @@ export function ImportCsvModal({
               type="file"
               accept=".csv"
               className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                setFile(f ?? null);
-                setSummary(null);
-                setError(null);
-              }}
+              onChange={handleFileChange}
             />
             <span className="text-sm font-medium text-zinc-800">
               {file ? file.name : "Drop CSV here or click to browse"}
@@ -109,7 +124,8 @@ export function ImportCsvModal({
           {summary && (
             <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               <p className="font-medium">
-                Import summary: {summary.success} imported, {summary.failed} skipped.
+                Import summary: {summary.success} imported, {summary.failed}{" "}
+                skipped.
               </p>
 
               {summary.failedMessages.length > 0 && (
@@ -130,7 +146,9 @@ export function ImportCsvModal({
                       <tbody>
                         {summary.failedMessages.map((msg, i) => (
                           <tr key={`${i}-${msg}`}>
-                            <td className="px-2 py-1 text-emerald-900">{i + 1}</td>
+                            <td className="px-2 py-1 text-emerald-900">
+                              {i + 1}
+                            </td>
                             <td className="px-2 py-1 text-emerald-900">{msg}</td>
                           </tr>
                         ))}
@@ -162,6 +180,5 @@ export function ImportCsvModal({
         </div>
       </div>
     </Modal>
-  );
+  )
 }
-

@@ -1,45 +1,58 @@
-import { useEffect, useState } from "react";
-import type { RoleLimit, RoleSettingsRow } from "../../types /types";
-import { Modal } from "./Modal";
-import { listRoleSettings, updateRoles } from "@/services/rolesService";
+import { useEffect, useState } from "react"
+import type { RoleLimit, RoleSettingsRow } from "../../types /types"
+import { Modal } from "./Modal"
+import { listRoleSettings, updateRoles } from "@/services/rolesService"
 
 type RoleLimitModalProps = {
-  roleLimits: RoleLimit[];
-  onClose: () => void;
-  onChange: (next: RoleLimit[]) => void;
-};
+  /** Current role limits passed from parent */
+  roleLimits: RoleLimit[]
+  /** Close modal callback */
+  onClose: () => void
+  /** Triggered after successful save */
+  onChange: (next: RoleLimit[]) => void
+}
 
+/**
+ * Modal for configuring role-based uniform limits and cooldown periods.
+ *
+ * Loads role settings from the server and allows inline editing.
+ * Only changed rows are sent back to the server when saving.
+ */
 export function RoleLimitModal({
   roleLimits,
   onClose,
   onChange,
-}: RoleLimitModalProps) 
-{
-  const [rows, setRows] = useState<RoleSettingsRow[]>([]);
-  const [originalRows, setOriginalRows] = useState<RoleSettingsRow[] | null>(
-    null
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+}: RoleLimitModalProps) {
+  const [rows, setRows] = useState<RoleSettingsRow[]>([])
+  const [originalRows, setOriginalRows] =
+    useState<RoleSettingsRow[] | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  /**
+   * Load role settings from server on mount.
+   * Falls back to provided roleLimits if fetch fails.
+   */
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = true
 
     async function load() {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
 
       try {
-        const roleSettings = await listRoleSettings();
-        if (!isMounted) return;
-        setRows(roleSettings);
-        setOriginalRows(roleSettings);
-      } catch (_err) {
-        if (!isMounted) return;
+        const roleSettings = await listRoleSettings()
+        if (!isMounted) return
 
-        setError("Unable to load role settings from the server.");
+        setRows(roleSettings)
+        setOriginalRows(roleSettings)
+      } catch {
+        if (!isMounted) return
 
+        setError("Unable to load role settings from the server.")
+
+        // Fallback to props if server fails
         if (roleLimits.length) {
           const fallbackRows: RoleSettingsRow[] = roleLimits.map(
             (limit, index) => ({
@@ -48,51 +61,60 @@ export function RoleLimitModal({
               uniformLimit: limit.maxItemsPerPeriod,
               cooldownDays: limit.cooldownDays,
             })
-          );
-          setRows(fallbackRows);
-          setOriginalRows(fallbackRows);
+          )
+
+          setRows(fallbackRows)
+          setOriginalRows(fallbackRows)
         }
       } finally {
-        if (!isMounted) return;
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false)
       }
     }
 
-    load();
+    load()
 
     return () => {
-      isMounted = false;
-    };
-  }, [roleLimits]);
+      isMounted = false
+    }
+  }, [roleLimits])
 
+  /**
+   * Updates a specific row locally.
+   */
   function updateRow(index: number, patch: Partial<RoleSettingsRow>) {
     setRows((current) =>
       current.map((row, i) => (i === index ? { ...row, ...patch } : row))
-    );
+    )
   }
 
+  /**
+   * Returns only rows that were modified.
+   */
   function getChangedRows(): RoleSettingsRow[] {
-    if (!originalRows) return rows;
+    if (!originalRows) return rows
 
-    const byId = new Map(originalRows.map((row) => [row.id, row]));
+    const byId = new Map(originalRows.map((row) => [row.id, row]))
 
     return rows.filter((row) => {
-      const original = byId.get(row.id);
-      if (!original) return true;
+      const original = byId.get(row.id)
+      if (!original) return true
 
       return (
         original.uniformLimit !== row.uniformLimit ||
         original.cooldownDays !== row.cooldownDays
-      );
-    });
+      )
+    })
   }
 
+  /**
+   * Persists changed role settings to the server.
+   */
   async function handleSave() {
-    setIsSaving(true);
-    setError(null);
+    setIsSaving(true)
+    setError(null)
 
     try {
-      const changedRows = getChangedRows();
+      const changedRows = getChangedRows()
 
       await Promise.all(
         changedRows.map((row) =>
@@ -101,22 +123,21 @@ export function RoleLimitModal({
             cooldown_days: row.cooldownDays,
           })
         )
-      );
+      )
 
       const nextRoleLimits: RoleLimit[] = rows.map((row) => ({
         role: row.roleName,
         maxItemsPerPeriod: row.uniformLimit,
-        // period is now managed on the backend; keep a placeholder
-        periodMonths: 0,
+        periodMonths: 0, // Managed server-side
         cooldownDays: row.cooldownDays,
-      }));
+      }))
 
-      onChange(nextRoleLimits);
-      onClose();
-    } catch (_err) {
-      setError("Unable to save role settings. Please try again.");
+      onChange(nextRoleLimits)
+      onClose()
+    } catch {
+      setError("Unable to save role settings. Please try again.")
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
   }
 
@@ -155,11 +176,9 @@ export function RoleLimitModal({
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={index} className="border-b border-zinc-100">
-                  <td className="px-2 py-2 align-top">
-                    <span className="text-xs text-zinc-800">
-                      {row.roleName}
-                    </span>
+                <tr key={row.id} className="border-b border-zinc-100">
+                  <td className="px-2 py-2 align-top text-zinc-800">
+                    {row.roleName}
                   </td>
                   <td className="px-2 py-2 align-top">
                     <input
@@ -172,7 +191,7 @@ export function RoleLimitModal({
                         })
                       }
                       disabled={isLoading || isSaving}
-                      className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-800 shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-300"
+                      className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-300"
                     />
                   </td>
                   <td className="px-2 py-2 align-top">
@@ -186,7 +205,7 @@ export function RoleLimitModal({
                         })
                       }
                       disabled={isLoading || isSaving}
-                      className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-800 shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-300"
+                      className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-300"
                     />
                   </td>
                 </tr>
@@ -196,16 +215,16 @@ export function RoleLimitModal({
         </div>
 
         <p className="text-[11px] text-zinc-500">
-          These settings help prevent over-ordering and ensure staff can&apos;t
+          These settings help prevent over-ordering and ensure staff cannot
           request uniforms too frequently. Actual enforcement happens on the
-          server, and this view keeps the rules visible to store managers.
+          server.
         </p>
 
         <div className="mt-1 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+            className="inline-flex rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Cancel
           </button>
@@ -213,13 +232,12 @@ export function RoleLimitModal({
             type="button"
             onClick={handleSave}
             disabled={isLoading || isSaving}
-            className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-medium text-zinc-50 hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-medium text-zinc-50 hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSaving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
     </Modal>
-  );
+  )
 }
-

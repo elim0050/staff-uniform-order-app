@@ -1,20 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState } from "react"
 import type {
   RequestRow,
   RoleLimit,
   StaffOption,
   UniformItemOption,
-} from "../../types /types";
-import { Modal } from "./Modal";
+} from "../../types /types"
+import { Modal } from "./Modal"
 
 type NewRequestModalProps = {
-  staffOptions: StaffOption[];
-  uniformOptions: UniformItemOption[];
-  roleLimits: RoleLimit[];
-  onClose: () => void;
-  onCreated: (request: RequestRow) => void;
-  onError: (message: string) => void;
-};
+  staffOptions: StaffOption[]
+  uniformOptions: UniformItemOption[]
+  roleLimits: RoleLimit[]
+  onClose: () => void
+  onCreated: (request: RequestRow) => void
+  onError: (message: string) => void
+}
 
 export function NewRequestModal({
   staffOptions,
@@ -24,124 +24,204 @@ export function NewRequestModal({
   onCreated,
   onError,
 }: NewRequestModalProps) {
-  const [staffId, setStaffId] = useState("");
-  const [itemId, setItemId] = useState("");
-  const [quantity, setQuantity] = useState<number | "">("");
-  const [reason, setReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fieldError, setFieldError] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [staffId, setStaffId] = useState("")
+  const [itemId, setItemId] = useState("")
+  const [quantity, setQuantity] = useState<number | "">("")
+  const [reason, setReason] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [fieldError, setFieldError] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState<string | null>(null)
 
+  /**
+   * Selected staff record based on the chosen staffId.
+   */
   const selectedStaff = useMemo(
     () => staffOptions.find((s) => s.id === staffId),
     [staffId, staffOptions]
-  );
+  )
+
+  /**
+   * Selected uniform item record based on the chosen itemId.
+   */
   const selectedItem = useMemo(
     () => uniformOptions.find((u) => u.id === itemId),
     [itemId, uniformOptions]
-  );
+  )
+
+  /**
+   * Role limits for the selected staff member (if available).
+   */
   const roleLimit = useMemo(
     () =>
       selectedStaff?.roleName
         ? roleLimits.find((rl) => rl.role === selectedStaff.roleName)
         : undefined,
     [selectedStaff, roleLimits]
-  );
+  )
 
+  /**
+   * Performs client-side validation and stores per-field error messages.
+   *
+   * @returns True when all fields pass validation; otherwise false.
+   */
   function validateLocally() {
-    const next: Record<string, string> = {};
-    if (!staffId) next.staffId = "Please choose a staff member.";
-    if (!itemId) next.itemId = "Please choose a uniform item.";
+    const next: Record<string, string> = {}
+
+    if (!staffId) next.staffId = "Please choose a staff member."
+    if (!itemId) next.itemId = "Please choose a uniform item."
+
     if (quantity === "" || quantity === undefined || quantity === null) {
-      next.quantity = "Please enter a quantity.";
+      next.quantity = "Please enter a quantity."
     } else if (!Number.isInteger(quantity) || Number(quantity) <= 0) {
-      next.quantity = "Quantity must be a positive whole number.";
+      next.quantity = "Quantity must be a positive whole number."
     }
+
     if (typeof quantity === "number") {
       if (
         selectedItem?.stockOnHand != null &&
         quantity > selectedItem.stockOnHand
       ) {
-        next.quantity = `Quantity cannot exceed available stock (${selectedItem.stockOnHand}).`;
+        next.quantity = `Quantity cannot exceed available stock (${selectedItem.stockOnHand}).`
       }
+
       if (roleLimit && quantity > roleLimit.maxItemsPerPeriod) {
-        next.quantity = `Quantity cannot exceed this role's limit (${roleLimit.maxItemsPerPeriod}).`;
+        next.quantity = `Quantity cannot exceed this role's limit (${roleLimit.maxItemsPerPeriod}).`
       }
     }
-    setFieldError(next);
-    return Object.keys(next).length === 0;
+
+    setFieldError(next)
+    return Object.keys(next).length === 0
   }
 
+  /**
+   * Submits a new uniform request to the API.
+   * Includes a client-side cooldown check before submitting.
+   */
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError(null);
+    e.preventDefault()
+    setFormError(null)
 
+    // Client-side cooldown check (server should also enforce this rule).
     if (selectedStaff?.lastRequestDate && roleLimit?.cooldownDays != null) {
-      const last = new Date(selectedStaff.lastRequestDate);
-      const now = new Date();
-      const diffDays =
-        (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+      const last = new Date(selectedStaff.lastRequestDate)
+      const now = new Date()
+      const diffDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
 
       if (diffDays < roleLimit.cooldownDays) {
-        const remaining = Math.ceil(roleLimit.cooldownDays - diffDays);
-        const message = `This staff member is still in cooldown for approximately ${remaining} more day(s).`;
-        setFormError(message);
-        onError(message);
-        return;
+        const remaining = Math.ceil(roleLimit.cooldownDays - diffDays)
+        const message = `This staff member is still in cooldown for approximately ${remaining} more day(s).`
+        setFormError(message)
+        onError(message)
+        return
       }
     }
 
-    if (!validateLocally()) return;
+    if (!validateLocally()) return
 
     try {
-      setIsSubmitting(true);
+      setIsSubmitting(true)
+
       const res = await fetch("/api/requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           staffId,
           items: [{ uniform_item_id: itemId, quantity: Number(quantity) }],
           reason: reason || undefined,
         }),
-      });
+      })
+
+      const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
         const message =
           data?.error ??
           data?.message ??
-          "We could not submit this request right now.";
-        setFormError(message);
-        onError(message);
-        return;
+          "We could not submit this request right now."
+        setFormError(message)
+        onError(message)
+        return
       }
 
-      const created = await res.json();
-      onCreated(created);
-      onClose();
+      onCreated(data as RequestRow)
+      onClose()
     } catch (err: any) {
       const message =
-        err?.message ?? "We could not submit this request right now.";
-      setFormError(message);
-      onError(message);
+        err?.message ?? "We could not submit this request right now."
+      setFormError(message)
+      onError(message)
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
+  /**
+   * Builds helper text describing role limit and available stock.
+   */
   function helperText() {
-    const parts: string[] = [];
+    const parts: string[] = []
+
     if (roleLimit) {
       parts.push(
         `Role limit: up to ${roleLimit.maxItemsPerPeriod} item(s) per request.`
-      );
+      )
     }
+
     if (selectedItem?.stockOnHand != null) {
-      parts.push(`Available stock: ${selectedItem.stockOnHand}.`);
+      parts.push(`Available stock: ${selectedItem.stockOnHand}.`)
     }
-    return parts.join(" ");
+
+    return parts.join(" ")
+  }
+
+  /**
+   * Handles quantity input changes while keeping the value within stock and role limits.
+   */
+  function handleQuantityChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+
+    if (val === "") {
+      setQuantity("")
+      return
+    }
+
+    const asNumber = Number(val)
+    if (!Number.isFinite(asNumber)) return
+
+    const stockLimit =
+      typeof selectedItem?.stockOnHand === "number"
+        ? selectedItem.stockOnHand
+        : undefined
+    const roleLimitMax = roleLimit?.maxItemsPerPeriod
+
+    let maxAllowed = asNumber
+    if (typeof stockLimit === "number") maxAllowed = Math.min(maxAllowed, stockLimit)
+    if (typeof roleLimitMax === "number") maxAllowed = Math.min(maxAllowed, roleLimitMax)
+
+    let nextQuantity = asNumber
+
+    if (maxAllowed < asNumber) {
+      nextQuantity = maxAllowed > 0 ? maxAllowed : (typeof quantity === "number" ? quantity : 0)
+
+      let message: string | undefined
+      if (typeof stockLimit === "number" && asNumber > stockLimit) {
+        message = `Quantity cannot exceed available stock (${stockLimit}).`
+      } else if (typeof roleLimitMax === "number" && asNumber > roleLimitMax) {
+        message = `Quantity cannot exceed this role's limit (${roleLimitMax}).`
+      }
+
+      if (message) {
+        setFieldError((prev) => ({ ...prev, quantity: message }))
+        onError(message)
+      }
+    } else {
+      setFieldError((prev) => {
+        const { quantity: _ignored, ...rest } = prev
+        return rest
+      })
+    }
+
+    setQuantity(nextQuantity)
   }
 
   return (
@@ -165,10 +245,7 @@ export function NewRequestModal({
 
         <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-1">
-            <label
-              htmlFor="staff"
-              className="text-xs font-medium text-zinc-800"
-            >
+            <label htmlFor="staff" className="text-xs font-medium text-zinc-800">
               Staff member
             </label>
             <select
@@ -235,62 +312,7 @@ export function NewRequestModal({
               step={1}
               inputMode="numeric"
               value={quantity === "" ? "" : quantity}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "") {
-                  setQuantity("");
-                  return;
-                }
-                const asNumber = Number(val);
-
-                if (!Number.isFinite(asNumber)) {
-                  return;
-                }
-
-                const stockLimit =
-                  typeof selectedItem?.stockOnHand === "number"
-                    ? selectedItem.stockOnHand
-                    : undefined;
-                const roleLimitMax = roleLimit?.maxItemsPerPeriod;
-
-                let maxAllowed = asNumber;
-                if (typeof stockLimit === "number") {
-                  maxAllowed = Math.min(maxAllowed, stockLimit);
-                }
-                if (typeof roleLimitMax === "number") {
-                  maxAllowed = Math.min(maxAllowed, roleLimitMax);
-                }
-
-                let nextQuantity = asNumber;
-                if (maxAllowed < asNumber) {
-                  nextQuantity = maxAllowed > 0 ? maxAllowed : quantity || 0;
-
-                  let message: string | undefined;
-                  if (
-                    typeof stockLimit === "number" &&
-                    asNumber > stockLimit
-                  ) {
-                    message = `Quantity cannot exceed available stock (${stockLimit}).`;
-                  } else if (
-                    typeof roleLimitMax === "number" &&
-                    asNumber > roleLimitMax
-                  ) {
-                    message = `Quantity cannot exceed this role's limit (${roleLimitMax}).`;
-                  }
-
-                  if (message) {
-                    setFieldError((prev) => ({ ...prev, quantity: message }));
-                    onError(message);
-                  }
-                } else {
-                  setFieldError((prev) => {
-                    const { quantity: _ignored, ...rest } = prev;
-                    return rest;
-                  });
-                }
-
-                setQuantity(nextQuantity);
-              }}
+              onChange={handleQuantityChange}
               className="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-800 shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-200"
             />
             <p className="text-[11px] text-zinc-500">{helperText()}</p>
@@ -335,6 +357,5 @@ export function NewRequestModal({
         </form>
       </div>
     </Modal>
-  );
+  )
 }
-
