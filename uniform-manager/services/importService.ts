@@ -150,6 +150,7 @@ export async function importStaffCSV(csvText: string) {
         name,
         role_id,
         store,
+        last_request_date : null
       })
 
       if (error) {

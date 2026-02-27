@@ -91,6 +91,7 @@ export async function getFormattedStaff(): Promise<StaffOption[]> {
       name,
       store,
       last_request_date,
+      role_id,
       roles:role_id (
         name
       )
@@ -101,7 +102,7 @@ export async function getFormattedStaff(): Promise<StaffOption[]> {
   const formatted: StaffOption[] = (data || []).map((req: any) => ({
     id: req.id,
     name: req.name,
-    roleName: req.role?.name ?? null,
+    roleName: req.roles?.name ?? null,
     roleId: req.role_id,
     lastRequestDate: req.last_request_date
   }));
